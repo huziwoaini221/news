@@ -60,10 +60,14 @@ export function wallToUtcIso(wall) {
   return new Date(Date.UTC(+y, +mo - 1, +d, +(h || 0), +(mi || 0)) - SHANGHAI_OFFSET_MS).toISOString();
 }
 
-// 统一入口：已带 Z 的 UTC 原样保留；否则视为上海本地时间转换
+// 统一入口：带时区信息（Z 或 ±HH:MM）的输入一律转成标准 UTC ISO；
+// 否则视为上海本地时间（wall clock）转换，保证数据库内所有时间都是 UTC、可正确比较
 export function normalizeIso(value) {
   if (value == null || value === '') return null;
   const s = String(value).trim();
-  if (/Z$|[+-]\d{2}:\d{2}$/.test(s)) return s;
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(s)) {
+    const t = new Date(s);
+    return isNaN(t.getTime()) ? null : t.toISOString();
+  }
   return wallToUtcIso(s);
 }
