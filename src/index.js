@@ -7,6 +7,7 @@ import { notificationRouter } from './routes/notification.js';
 import { remindersRouter } from './routes/reminders.js';
 import { morningRouter } from './routes/morning.js';
 import { botLoginRouter } from './routes/bot.js';
+import { botCallbackRouter } from './routes/botcallback.js';
 
 const apiRoutes = [
   { prefix: '/api/tasks', handler: tasksRouter },
@@ -31,6 +32,11 @@ export default {
     // 智能机器人专用：换取登录链接（BOT_SECRET 鉴权）
     if (path === '/api/bot/login') {
       return botLoginRouter(request, env);
+    }
+
+    // 智能机器人 URL 回调（自有签名/加解密，不走 checkAuth）
+    if (path === '/api/bot/callback') {
+      return botCallbackRouter(request, env, url);
     }
 
     for (const route of apiRoutes) {
