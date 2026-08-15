@@ -55,7 +55,10 @@ export async function calendarRouter(request, env, ctx, url) {
     }
 
     if (method === 'DELETE') {
+      const event = await getEvent(env, id);
+      if (!event) return json({ error: 'not found' }, 404);
       await deleteEvent(env, id);
+      ctx.waitUntil(notify(env, { source: 'calendar', eventType: 'event_deleted', message: `🗑️ 日程已删除\n${event.title}`, payload: event }));
       return json({ ok: true });
     }
 

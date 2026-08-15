@@ -50,7 +50,10 @@ export async function tasksRouter(request, env, ctx, url) {
     }
 
     if (method === 'DELETE') {
+      const task = await getTask(env, id);
+      if (!task) return json({ error: 'not found' }, 404);
       await deleteTask(env, id);
+      ctx.waitUntil(notify(env, { source: 'tasks', eventType: 'task_deleted', message: `🗑️ 任务已删除\n${task.title}`, payload: task }));
       return json({ ok: true });
     }
 

@@ -95,7 +95,11 @@ export async function financesRouter(request, env, ctx, url) {
     }
 
     if (method === 'DELETE') {
+      const tx = await getTransaction(env, id);
+      if (!tx) return json({ error: 'not found' }, 404);
       await deleteTransaction(env, id);
+      const message = `🗑️ 记账已删除\n${tx.type === 'income' ? '收入' : '支出'} ¥${Number(tx.amount).toFixed(2)}${tx.category ? '｜' + tx.category : ''}`;
+      ctx.waitUntil(notify(env, { source: 'finances', eventType: 'transaction_deleted', message, payload: tx }));
       return json({ ok: true });
     }
 

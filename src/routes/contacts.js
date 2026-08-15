@@ -37,7 +37,10 @@ export async function contactsRouter(request, env, ctx, url) {
     }
 
     if (method === 'DELETE') {
+      const contact = await getContact(env, id);
+      if (!contact) return json({ error: 'not found' }, 404);
       await deleteContact(env, id);
+      ctx.waitUntil(notify(env, { source: 'contacts', eventType: 'contact_deleted', message: `🗑️ 联系人已删除\n${contact.name}`, payload: contact }));
       return json({ ok: true });
     }
 

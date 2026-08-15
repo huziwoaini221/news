@@ -7,7 +7,7 @@
     {
       "binding": "DB",
       "database_name": "personal-hub",
-      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "database_id": "4065d765-ba4b-4a15-af80-8e0e53d47713",
       "migrations_dir": "migrations"
     }
   ],
