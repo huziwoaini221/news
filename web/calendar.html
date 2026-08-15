@@ -12,7 +12,7 @@
       <a href="/index.html">← 首页</a>
     </div>
 
-    <div class="card">
+    <div class="card" id="formCard">
       <form id="eventForm">
         <div class="row">
           <input id="title" placeholder="日程标题 *" style="flex:1;" required>
@@ -28,31 +28,114 @@
         </div>
         <button type="submit">添加日程</button>
         <button type="button" class="gray" id="cancelEdit" style="display:none;" onclick="cancelEdit()">取消编辑</button>
+        <span class="muted" id="dateHint"></span>
       </form>
     </div>
 
     <div class="card">
-      <div style="margin-bottom:8px;">
-        <button class="gray" id="btnToday" onclick="setRange('today')">今天</button>
-        <button class="gray" onclick="setRange('week')">本周</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
+        <button class="gray" onclick="navMonth(-1)">‹</button>
+        <b id="monthLabel">2026年8月</b>
+        <button class="gray" onclick="navMonth(1)">›</button>
+        <button class="gray" onclick="goToday()">今天</button>
       </div>
+      <div id="weekHeader" style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;color:#8a919c;font-size:12px;margin-bottom:6px;">
+        <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+      </div>
+      <div id="monthGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+    </div>
+
+    <div class="card">
+      <div id="dayTitle" style="font-weight:600;margin-bottom:4px;"></div>
       <div class="list" id="eventList"></div>
-      <div id="empty" class="muted" style="padding:12px 0;">暂无日程</div>
+      <div id="empty" class="muted" style="padding:12px 0;">该日暂无日程</div>
     </div>
   </div>
 
   <script src="/common.js"></script>
   <script>
-    var range = 'today';
+    var OFF = 8 * 3600 * 1000;
+    var today = shDate(new Date());
+    var viewY = +today.slice(0, 4), viewM = +today.slice(5, 7);
+    var selDate = today;
     var editingId = null;
+    var monthEvents = [];
+
+    // Date(ms) -> 上海时区 'YYYY-MM-DD'
+    function shDate(ms) {
+      var d = new Date(ms + OFF);
+      function p(n) { return String(n).padStart(2, '0'); }
+      return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+    }
+    // 上海某年某月区间对应的 UTC 毫秒
+    function monthRange(y, m) {
+      return { start: Date.UTC(y, m - 1, 1) - OFF, end: Date.UTC(y, m, 1) - OFF };
+    }
 
     async function load() {
-      var data = await PH.api('/api/events?day=' + range);
+      var r = monthRange(viewY, viewM);
+      var data = await PH.api('/api/events?start=' + encodeURIComponent(new Date(r.start).toISOString()) + '&end=' + encodeURIComponent(new Date(r.end).toISOString()));
+      monthEvents = data.events || [];
+      renderGrid();
+      renderList();
+    }
+
+    function eventsOf(date) {
+      return monthEvents.filter(function (e) { return PH.fmtDate(e.start_at) === date; });
+    }
+
+    function renderGrid() {
+      document.getElementById('monthLabel').textContent = viewY + '年' + viewM + '月';
+      var firstDow = new Date(Date.UTC(viewY, viewM - 1, 1)).getUTCDay(); // 0=日
+      var daysInMonth = new Date(Date.UTC(viewY, viewM, 0)).getUTCDate();
+      var grid = document.getElementById('monthGrid');
+      grid.innerHTML = '';
+      var total = Math.ceil((firstDow + daysInMonth) / 7) * 7;
+      for (var i = 0; i < total; i++) {
+        var dayNum = i - firstDow + 1;
+        var isThisMonth = dayNum >= 1 && dayNum <= daysInMonth;
+        var dateStr = isThisMonth
+          ? viewY + '-' + String(viewM).padStart(2, '0') + '-' + String(dayNum).padStart(2, '0')
+          : null;
+        var cell = document.createElement('div');
+        cell.style.cssText = 'min-height:72px;border-radius:8px;padding:4px 6px;box-sizing:border-box;cursor:pointer;font-size:12px;position:relative;' +
+          (isThisMonth ? 'background:#f8fafc;' : 'background:#eef1f4;color:#c0c6cd;') +
+          (dateStr === today ? 'outline:2px solid #2563eb;' : '') +
+          (dateStr === selDate ? 'outline:2px solid #2563eb;' : '');
+        if (dateStr) cell.onclick = function (ds) { return function () { selectDate(ds); }; }(dateStr);
+
+        var num = document.createElement('div');
+        num.style.cssText = 'font-weight:600;' + (dateStr === today ? 'color:#2563eb;' : '');
+        num.textContent = isThisMonth ? dayNum : '';
+        cell.appendChild(num);
+
+        var evs = dateStr ? eventsOf(dateStr) : [];
+        var shown = evs.slice(0, 3);
+        shown.forEach(function (e) {
+          var t = document.createElement('div');
+          t.textContent = (e.status === 'cancelled' ? '✗ ' : '• ') + e.title;
+          t.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + (e.status === 'cancelled' ? '#c0c6cd;text-decoration:line-through' : '#57606a') + ';cursor:pointer;margin-top:2px;';
+          t.onclick = function (evId) { return function (ev) { ev.stopPropagation(); edit(evId); }; }(e.id);
+          cell.appendChild(t);
+        });
+        if (evs.length > 3) {
+          var more = document.createElement('div');
+          more.textContent = '+' + (evs.length - 3) + ' 项';
+          more.style.cssText = 'color:#8a919c;margin-top:2px;';
+          cell.appendChild(more);
+        }
+        grid.appendChild(cell);
+      }
+    }
+
+    function renderList() {
+      document.getElementById('dayTitle').textContent = '📅 ' + selDate;
+      var evs = eventsOf(selDate);
       var list = document.getElementById('eventList');
       var empty = document.getElementById('empty');
       list.innerHTML = '';
-      empty.style.display = data.events.length ? 'none' : 'block';
-      data.events.forEach(function (ev) {
+      empty.style.display = evs.length ? 'none' : 'block';
+      evs.forEach(function (ev) {
         var div = document.createElement('div');
         var cls = ev.status === 'cancelled' ? 'done' : '';
         div.innerHTML =
@@ -75,7 +158,31 @@
       });
     }
 
-    function setRange(r) { range = r; load(); }
+    function selectDate(ds) {
+      selDate = ds;
+      if (editingId) cancelEdit();
+      document.getElementById('start_at').value = ds + 'T09:00';
+      document.getElementById('end_at').value = ds + 'T10:00';
+      document.getElementById('reminder_at').value = '';
+      document.getElementById('dateHint').textContent = '已选中 ' + ds;
+      renderGrid();
+      renderList();
+      document.getElementById('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function navMonth(delta) {
+      var d = new Date(Date.UTC(viewY, viewM - 1 + delta, 1));
+      viewY = d.getUTCFullYear();
+      viewM = d.getUTCMonth() + 1;
+      load();
+    }
+
+    function goToday() {
+      viewY = +today.slice(0, 4);
+      viewM = +today.slice(5, 7);
+      selectDate(today);
+      load();
+    }
 
     async function cancel(id) {
       await PH.api('/api/events/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) });
@@ -103,7 +210,8 @@
         document.getElementById('description').value = ev.description || '';
         document.getElementById('cancelEdit').style.display = 'inline-block';
         document.querySelector('#eventForm button[type=submit]').textContent = '保存修改';
-        window.scrollTo(0, 0);
+        document.getElementById('dateHint').textContent = '正在编辑：' + ev.title;
+        document.getElementById('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
 
@@ -112,6 +220,7 @@
       document.getElementById('eventForm').reset();
       document.getElementById('cancelEdit').style.display = 'none';
       document.querySelector('#eventForm button[type=submit]').textContent = '添加日程';
+      document.getElementById('dateHint').textContent = '';
     }
 
     document.getElementById('eventForm').onsubmit = async function (e) {
