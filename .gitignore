@@ -6,3 +6,5 @@ dist/
 backup/
 *.sql.tmp
 .DS_Store
+wecom-bot/node_modules/
+wecom-bot/config.json

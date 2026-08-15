@@ -1,0 +1,13 @@
+{
+  "name": "wecom-personal-hub-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "企业微信智能机器人：发送「登录」返回 Personal Hub 登录链接",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "@wecom/aibot-node-sdk": "^1.0.0"
+  }
+}
