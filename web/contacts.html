@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>👤 通讯录</title>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>👤 通讯录</h1>
+      <a href="/index.html">← 首页</a>
+    </div>
+
+    <div class="card">
+      <form id="contactForm">
+        <div class="row">
+          <input id="name" placeholder="姓名 *" style="flex:1;" required>
+          <input id="phone" placeholder="电话" style="flex:1;">
+        </div>
+        <div class="row">
+          <input id="email" type="email" placeholder="邮箱" style="flex:1;">
+          <input id="company" placeholder="公司" style="flex:1;">
+        </div>
+        <div class="row">
+          <input id="position" placeholder="职位" style="flex:1;">
+        </div>
+        <div class="row">
+          <textarea id="note" placeholder="备注（可选）" rows="2"></textarea>
+        </div>
+        <button type="submit">添加联系人</button>
+        <button type="button" class="gray" id="cancelEdit" style="display:none;" onclick="cancelEdit()">取消编辑</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <input id="q" placeholder="搜索姓名 / 电话 / 邮箱 / 公司..." style="flex:1;">
+        <button class="gray" onclick="search()">搜索</button>
+      </div>
+      <div class="list" id="contactList"></div>
+      <div id="empty" class="muted" style="padding:12px 0;">暂无联系人</div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    var editingId = null;
+
+    async function load() {
+      var q = document.getElementById('q').value.trim();
+      var data = await PH.api('/api/contacts' + (q ? '?q=' + encodeURIComponent(q) : ''));
+      var list = document.getElementById('contactList');
+      var empty = document.getElementById('empty');
+      list.innerHTML = '';
+      empty.style.display = data.contacts.length ? 'none' : 'block';
+      data.contacts.forEach(function (c) {
+        var div = document.createElement('div');
+        div.innerHTML =
+          '<span style="flex:1;">' +
+          '<b>' + PH.esc(c.name) + '</b>' +
+          (c.position ? ' <span class="tag">' + PH.esc(c.position) + '</span>' : '') +
+          '<div class="muted">' +
+          (c.phone ? '📞 ' + PH.esc(c.phone) + ' ' : '') +
+          (c.email ? '✉️ ' + PH.esc(c.email) + ' ' : '') +
+          (c.company ? '🏢 ' + PH.esc(c.company) : '') +
+          '</div>' +
+          (c.note ? '<div class="muted">' + PH.esc(c.note) + '</div>' : '') +
+          '</span>' +
+          '<button class="gray" onclick="edit(' + c.id + ')">编辑</button>' +
+          '<button class="red" onclick="del(' + c.id + ')">删除</button>';
+        list.appendChild(div);
+      });
+    }
+
+    function search() { load(); }
+    document.getElementById('q').onkeydown = function (e) { if (e.key === 'Enter') load(); };
+
+    async function del(id) {
+      if (!confirm('确认删除该联系人？')) return;
+      await PH.api('/api/contacts/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    function edit(id) {
+      PH.api('/api/contacts/' + id).then(function (data) {
+        var c = data.contact;
+        editingId = id;
+        document.getElementById('name').value = c.name;
+        document.getElementById('phone').value = c.phone || '';
+        document.getElementById('email').value = c.email || '';
+        document.getElementById('company').value = c.company || '';
+        document.getElementById('position').value = c.position || '';
+        document.getElementById('note').value = c.note || '';
+        document.getElementById('cancelEdit').style.display = 'inline-block';
+        document.querySelector('#contactForm button[type=submit]').textContent = '保存修改';
+        window.scrollTo(0, 0);
+      });
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      document.getElementById('contactForm').reset();
+      document.getElementById('cancelEdit').style.display = 'none';
+      document.querySelector('#contactForm button[type=submit]').textContent = '添加联系人';
+    }
+
+    document.getElementById('contactForm').onsubmit = async function (e) {
+      e.preventDefault();
+      var payload = {
+        name: document.getElementById('name').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        company: document.getElementById('company').value.trim(),
+        position: document.getElementById('position').value.trim(),
+        note: document.getElementById('note').value.trim(),
+      };
+      if (editingId) {
+        await PH.api('/api/contacts/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) });
+        PH.toast('已保存');
+      } else {
+        await PH.api('/api/contacts', { method: 'POST', body: JSON.stringify(payload) });
+        PH.toast('已添加');
+      }
+      cancelEdit();
+      load();
+    };
+
+    PH.style();
+    PH.ensureLogin();
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏠 个人工具</title>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>🏠 个人工具</h1>
+      <span class="muted"><a href="#" onclick="PH.logout();return false;">退出</a></span>
+    </div>
+
+    <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <a href="/tasks.html" style="display:block;padding:20px;background:#eff6ff;border-radius:8px;text-decoration:none;color:#1e40af;">
+        <div style="font-size:24px;">📋</div><div style="font-weight:600;margin-top:6px;">任务</div>
+        <div class="muted">待办 / 提醒</div>
+      </a>
+      <a href="/calendar.html" style="display:block;padding:20px;background:#f0fdf4;border-radius:8px;text-decoration:none;color:#166534;">
+        <div style="font-size:24px;">📅</div><div style="font-weight:600;margin-top:6px;">日历</div>
+        <div class="muted">日程 / 安排</div>
+      </a>
+      <a href="/finances.html" style="display:block;padding:20px;background:#fdf4ff;border-radius:8px;text-decoration:none;color:#86198f;">
+        <div style="font-size:24px;">💰</div><div style="font-weight:600;margin-top:6px;">财务</div>
+        <div class="muted">收入 / 支出</div>
+      </a>
+      <a href="/contacts.html" style="display:block;padding:20px;background:#fffbeb;border-radius:8px;text-decoration:none;color:#92400e;">
+        <div style="font-size:24px;">👤</div><div style="font-weight:600;margin-top:6px;">通讯录</div>
+        <div class="muted">联系人</div>
+      </a>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;margin-bottom:10px;color:#57606a;">独立工具</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <a href="https://fa2393a7.keshijilu.pages.dev/" target="_blank" rel="noopener" style="text-decoration:none;color:#1f2328;">
+          <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">📚</span><span>课时记录</span></div>
+        </a>
+        <a href="https://ae30e5c9.vaultlite.pages.dev/" target="_blank" rel="noopener" style="text-decoration:none;color:#1f2328;">
+          <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">🔐</span><span>VaultLite</span></div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    PH.style();
+    PH.ensureLogin();
+  </script>
+</body>
+</html>

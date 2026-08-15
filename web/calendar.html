@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📅 日历</title>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>📅 日历</h1>
+      <a href="/index.html">← 首页</a>
+    </div>
+
+    <div class="card">
+      <form id="eventForm">
+        <div class="row">
+          <input id="title" placeholder="日程标题 *" style="flex:1;" required>
+          <input id="location" placeholder="地点" style="flex:1;">
+        </div>
+        <div class="row">
+          <input id="start_at" type="datetime-local" placeholder="开始时间">
+          <input id="end_at" type="datetime-local" placeholder="结束时间">
+          <input id="reminder_at" type="datetime-local" placeholder="提醒时间">
+        </div>
+        <div class="row">
+          <textarea id="description" placeholder="备注（可选）" rows="2"></textarea>
+        </div>
+        <button type="submit">添加日程</button>
+        <button type="button" class="gray" id="cancelEdit" style="display:none;" onclick="cancelEdit()">取消编辑</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div style="margin-bottom:8px;">
+        <button class="gray" id="btnToday" onclick="setRange('today')">今天</button>
+        <button class="gray" onclick="setRange('week')">本周</button>
+      </div>
+      <div class="list" id="eventList"></div>
+      <div id="empty" class="muted" style="padding:12px 0;">暂无日程</div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    var range = 'today';
+    var editingId = null;
+
+    async function load() {
+      var data = await PH.api('/api/events?day=' + range);
+      var list = document.getElementById('eventList');
+      var empty = document.getElementById('empty');
+      list.innerHTML = '';
+      empty.style.display = data.events.length ? 'none' : 'block';
+      data.events.forEach(function (ev) {
+        var div = document.createElement('div');
+        var cls = ev.status === 'cancelled' ? 'done' : '';
+        div.innerHTML =
+          '<span style="flex:1;" class="' + cls + '">' +
+          PH.esc(ev.title) +
+          '<div class="muted">' +
+          (ev.start_at ? '🕐 ' + PH.fmtDateTime(ev.start_at) + ' ' : '') +
+          (ev.end_at ? '→ ' + PH.fmtDateTime(ev.end_at).slice(5, 16) + ' ' : '') +
+          (ev.location ? '📍 ' + PH.esc(ev.location) + ' ' : '') +
+          (ev.reminder_at ? '<span class="tag">提醒 ' + PH.fmtDateTime(ev.reminder_at) + '</span>' : '') +
+          '</div>' +
+          (ev.description ? '<div class="muted">' + PH.esc(ev.description) + '</div>' : '') +
+          '</span>' +
+          '<button class="gray" onclick="edit(' + ev.id + ')">编辑</button>' +
+          (ev.status === 'scheduled'
+            ? '<button class="gray" onclick="cancel(' + ev.id + ')">取消</button>'
+            : '<button class="gray" onclick="reopen(' + ev.id + ')">恢复</button>') +
+          '<button class="red" onclick="del(' + ev.id + ')">删除</button>';
+        list.appendChild(div);
+      });
+    }
+
+    function setRange(r) { range = r; load(); }
+
+    async function cancel(id) {
+      await PH.api('/api/events/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) });
+      load();
+    }
+    async function reopen(id) {
+      await PH.api('/api/events/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'scheduled' }) });
+      load();
+    }
+    async function del(id) {
+      if (!confirm('确认删除该日程？')) return;
+      await PH.api('/api/events/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    function edit(id) {
+      PH.api('/api/events/' + id).then(function (data) {
+        var ev = data.event;
+        editingId = id;
+        document.getElementById('title').value = ev.title;
+        document.getElementById('location').value = ev.location || '';
+        document.getElementById('start_at').value = PH.toInput(ev.start_at);
+        document.getElementById('end_at').value = PH.toInput(ev.end_at);
+        document.getElementById('reminder_at').value = PH.toInput(ev.reminder_at);
+        document.getElementById('description').value = ev.description || '';
+        document.getElementById('cancelEdit').style.display = 'inline-block';
+        document.querySelector('#eventForm button[type=submit]').textContent = '保存修改';
+        window.scrollTo(0, 0);
+      });
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      document.getElementById('eventForm').reset();
+      document.getElementById('cancelEdit').style.display = 'none';
+      document.querySelector('#eventForm button[type=submit]').textContent = '添加日程';
+    }
+
+    document.getElementById('eventForm').onsubmit = async function (e) {
+      e.preventDefault();
+      var payload = {
+        title: document.getElementById('title').value.trim(),
+        location: document.getElementById('location').value.trim(),
+        start_at: document.getElementById('start_at').value || null,
+        end_at: document.getElementById('end_at').value || null,
+        reminder_at: document.getElementById('reminder_at').value || null,
+        description: document.getElementById('description').value.trim(),
+      };
+      if (editingId) {
+        await PH.api('/api/events/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) });
+        PH.toast('已保存');
+      } else {
+        await PH.api('/api/events', { method: 'POST', body: JSON.stringify(payload) });
+        PH.toast('已添加，企业微信会收到通知');
+      }
+      cancelEdit();
+      load();
+    };
+
+    PH.style();
+    PH.ensureLogin();
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💰 财务</title>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>💰 财务</h1>
+      <a href="/index.html">← 首页</a>
+    </div>
+
+    <div class="card">
+      <div class="stat">
+        <div><b id="income" style="color:#16a34a;">¥0</b><span class="muted">收入</span></div>
+        <div><b id="expense" style="color:#dc2626;">¥0</b><span class="muted">支出</span></div>
+        <div><b id="balance">¥0</b><span class="muted">结余</span></div>
+      </div>
+      <div style="text-align:center;margin-top:8px;">
+        <button class="gray" onclick="setPeriod('today')">今日</button>
+        <button class="gray" onclick="setPeriod('month')">本月</button>
+        <button class="gray" onclick="setPeriod('year')">本年度</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <form id="txForm">
+        <div class="row">
+          <select id="type" style="width:90px;">
+            <option value="expense">支出</option>
+            <option value="income">收入</option>
+          </select>
+          <input id="amount" type="number" step="0.01" min="0" placeholder="金额 *" style="width:120px;" required>
+          <input id="category" list="categories" placeholder="分类" style="flex:1;">
+          <datalist id="categories">
+            <option value="餐饮"></option>
+            <option value="交通"></option>
+            <option value="购物"></option>
+            <option value="居住"></option>
+            <option value="娱乐"></option>
+            <option value="医疗"></option>
+            <option value="教育"></option>
+            <option value="其他"></option>
+          </datalist>
+        </div>
+        <div class="row">
+          <input id="description" placeholder="备注（可选）" style="flex:1;">
+          <input id="occurred_at" type="date" style="width:150px;">
+        </div>
+        <button type="submit">保存</button>
+        <button type="button" class="gray" id="cancelEdit" style="display:none;" onclick="cancelEdit()">取消编辑</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="list" id="txList"></div>
+      <div id="empty" class="muted" style="padding:12px 0;">暂无记录</div>
+      <div id="catStat" style="border-top:1px solid #f0f2f5;padding-top:10px;font-size:13px;"></div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    var period = 'month';
+    var editingId = null;
+
+    async function load() {
+      var [s, list] = await Promise.all([
+        PH.api('/api/transactions/summary?period=' + period),
+        PH.api('/api/transactions?period=' + period),
+      ]);
+      document.getElementById('income').textContent = '¥' + s.income.toFixed(2);
+      document.getElementById('expense').textContent = '¥' + s.expense.toFixed(2);
+      document.getElementById('balance').textContent = '¥' + (s.income - s.expense).toFixed(2);
+
+      var el = document.getElementById('txList');
+      var empty = document.getElementById('empty');
+      el.innerHTML = '';
+      empty.style.display = list.transactions.length ? 'none' : 'block';
+      list.transactions.forEach(function (t) {
+        var div = document.createElement('div');
+        var cls = t.type === 'income' ? 'color:#16a34a;' : 'color:#dc2626;';
+        div.innerHTML =
+          '<span style="flex:1;">' +
+          '<b style="' + cls + '">' + (t.type === 'income' ? '+' : '-') + '¥' + Number(t.amount).toFixed(2) + '</b> ' +
+          '<span class="tag">' + PH.esc(t.category || '未分类') + '</span>' +
+          (t.description ? ' <span class="muted">' + PH.esc(t.description) + '</span>' : '') +
+          '<div class="muted">' + PH.fmtDate(t.occurred_at) + '</div>' +
+          '</span>' +
+          '<button class="gray" onclick="edit(' + t.id + ')">编辑</button>' +
+          '<button class="red" onclick="del(' + t.id + ')">删除</button>';
+        el.appendChild(div);
+      });
+
+      var cats = s.categories.filter(function (c) { return c.total > 0; });
+      document.getElementById('catStat').innerHTML = cats.length
+        ? '<b>分类统计</b><br>' + cats.map(function (c) {
+            return PH.esc(c.category || '未分类') + '（' + (c.type === 'income' ? '收' : '支') + '）：¥' + Number(c.total).toFixed(2) + ' ×' + c.cnt;
+          }).join(' · ')
+        : '';
+    }
+
+    function setPeriod(p) { period = p; load(); }
+
+    async function del(id) {
+      if (!confirm('确认删除这笔记录？')) return;
+      await PH.api('/api/transactions/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    function edit(id) {
+      PH.api('/api/transactions/' + id).then(function (data) {
+        var t = data.transaction;
+        editingId = id;
+        document.getElementById('type').value = t.type;
+        document.getElementById('amount').value = t.amount;
+        document.getElementById('category').value = t.category || '';
+        document.getElementById('description').value = t.description || '';
+        document.getElementById('occurred_at').value = PH.fmtDate(t.occurred_at);
+        document.getElementById('cancelEdit').style.display = 'inline-block';
+        document.querySelector('#txForm button[type=submit]').textContent = '保存修改';
+        window.scrollTo(0, 0);
+      });
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      document.getElementById('txForm').reset();
+      document.getElementById('cancelEdit').style.display = 'none';
+      document.querySelector('#txForm button[type=submit]').textContent = '保存';
+    }
+
+    document.getElementById('txForm').onsubmit = async function (e) {
+      e.preventDefault();
+      var occurred = document.getElementById('occurred_at').value;
+      var payload = {
+        type: document.getElementById('type').value,
+        amount: Number(document.getElementById('amount').value),
+        category: document.getElementById('category').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        occurred_at: occurred ? occurred + 'T00:00:00' : new Date().toISOString(),
+      };
+      if (editingId) {
+        await PH.api('/api/transactions/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) });
+        PH.toast('已保存');
+      } else {
+        await PH.api('/api/transactions', { method: 'POST', body: JSON.stringify(payload) });
+        PH.toast('已记账，企业微信会收到通知');
+      }
+      cancelEdit();
+      load();
+    };
+
+    PH.style();
+    PH.ensureLogin();
+    load();
+  </script>
+</body>
+</html>

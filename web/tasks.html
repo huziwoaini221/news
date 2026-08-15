@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📋 任务</title>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>📋 任务</h1>
+      <a href="/index.html">← 首页</a>
+    </div>
+
+    <div class="card">
+      <form id="taskForm">
+        <div class="row">
+          <input id="title" placeholder="任务标题 *" style="flex:1;" required>
+          <select id="filter" style="width:110px;">
+            <option value="pending">未完成</option>
+            <option value="today">今天</option>
+            <option value="tomorrow">明天</option>
+            <option value="completed">已完成</option>
+            <option value="all">全部</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="due_at" type="datetime-local" placeholder="截止时间">
+          <input id="reminder_at" type="datetime-local" placeholder="提醒时间">
+        </div>
+        <div class="row">
+          <textarea id="description" placeholder="备注（可选）" rows="2"></textarea>
+        </div>
+        <button type="submit">添加任务</button>
+        <button type="button" class="gray" id="cancelEdit" style="display:none;" onclick="cancelEdit()">取消编辑</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="list" id="taskList"></div>
+      <div id="empty" class="muted" style="padding:12px 0;">暂无任务</div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    var editingId = null;
+
+    async function load() {
+      var filter = document.getElementById('filter').value;
+      var data = await PH.api('/api/tasks?filter=' + filter);
+      var list = document.getElementById('taskList');
+      var empty = document.getElementById('empty');
+      list.innerHTML = '';
+      empty.style.display = data.tasks.length ? 'none' : 'block';
+      data.tasks.forEach(function (t) {
+        var div = document.createElement('div');
+        div.innerHTML =
+          '<input type="checkbox" ' + (t.status === 'completed' ? 'checked' : '') + ' onclick="toggle(' + t.id + ')">' +
+          '<span style="flex:1;" class="' + (t.status === 'completed' ? 'done' : '') + '">' +
+          PH.esc(t.title) +
+          (t.description ? '<div class="muted">' + PH.esc(t.description) + '</div>' : '') +
+          (t.due_at || t.reminder_at ? '<div class="muted">' +
+            (t.due_at ? '⏰ ' + PH.fmtDateTime(t.due_at) + ' ' : '') +
+            (t.reminder_at ? '<span class="tag">提醒 ' + PH.fmtDateTime(t.reminder_at) + '</span>' : '') +
+            '</div>' : '') +
+          '</span>' +
+          '<button class="gray" onclick="edit(' + t.id + ')">编辑</button>' +
+          '<button class="red" onclick="del(' + t.id + ')">删除</button>';
+        list.appendChild(div);
+      });
+    }
+
+    async function toggle(id) {
+      var data = await PH.api('/api/tasks/' + id);
+      var next = data.task.status === 'completed' ? 'pending' : 'completed';
+      await PH.api('/api/tasks/' + id, { method: 'PATCH', body: JSON.stringify({ status: next }) });
+      load();
+    }
+
+    async function del(id) {
+      if (!confirm('确认删除该任务？')) return;
+      await PH.api('/api/tasks/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    function edit(id) {
+      PH.api('/api/tasks/' + id).then(function (data) {
+        var t = data.task;
+        editingId = id;
+        document.getElementById('title').value = t.title;
+        document.getElementById('description').value = t.description || '';
+        document.getElementById('due_at').value = PH.toInput(t.due_at);
+        document.getElementById('reminder_at').value = PH.toInput(t.reminder_at);
+        document.getElementById('cancelEdit').style.display = 'inline-block';
+        document.querySelector('#taskForm button[type=submit]').textContent = '保存修改';
+        window.scrollTo(0, 0);
+      });
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      document.getElementById('taskForm').reset();
+      document.getElementById('cancelEdit').style.display = 'none';
+      document.querySelector('#taskForm button[type=submit]').textContent = '添加任务';
+    }
+
+    document.getElementById('taskForm').onsubmit = async function (e) {
+      e.preventDefault();
+      var payload = {
+        title: document.getElementById('title').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        due_at: document.getElementById('due_at').value || null,
+        reminder_at: document.getElementById('reminder_at').value || null,
+      };
+      if (editingId) {
+        await PH.api('/api/tasks/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) });
+        PH.toast('已保存');
+      } else {
+        await PH.api('/api/tasks', { method: 'POST', body: JSON.stringify(payload) });
+        PH.toast('已添加，企业微信会收到通知');
+      }
+      cancelEdit();
+      load();
+    };
+
+    document.getElementById('filter').onchange = load;
+
+    PH.style();
+    PH.ensureLogin();
+    load();
+  </script>
+</body>
+</html>

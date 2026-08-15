@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "personal-hub",
+  "main": "src/index.js",
+  "compatibility_date": "2025-04-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "personal-hub",
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "APP_NAME": "personal-hub"
+  },
+  "assets": {
+    "directory": "./web",
+    "binding": "ASSETS"
+  }
+}

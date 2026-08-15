@@ -1,0 +1,18 @@
+{
+  "name": "personal-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "个人工具中枢：任务 / 日历 / 通讯录 / 财务 + 统一通知 + 晨报",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 execute personal-hub --local --file=./migrations/0001_init.sql",
+    "db:remote": "wrangler d1 execute personal-hub --remote --file=./migrations/0001_init.sql",
+    "backup:local": "wrangler d1 export personal-hub --local --output=./backup/local.sql",
+    "backup:remote": "wrangler d1 export personal-hub --remote --output=./backup/remote.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
