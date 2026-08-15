@@ -140,4 +140,14 @@
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, 2000);
   };
+
+  // 短时登录链接自动登录：/index.html?key=<signed>
+  (function autoLogin() {
+    var m = location.search.match(/[?&]key=([^&]+)/);
+    if (m && !PH.getToken()) {
+      PH.setToken(decodeURIComponent(m[1]));
+      history.replaceState(null, '', location.pathname);
+      location.reload();
+    }
+  })();
 })();

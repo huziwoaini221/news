@@ -6,6 +6,7 @@ import { financesRouter } from './routes/finances.js';
 import { notificationRouter } from './routes/notification.js';
 import { remindersRouter } from './routes/reminders.js';
 import { morningRouter } from './routes/morning.js';
+import { botLoginRouter } from './routes/bot.js';
 
 const apiRoutes = [
   { prefix: '/api/tasks', handler: tasksRouter },
@@ -24,12 +25,17 @@ export default {
 
     // 鉴权探测（Web UI 登录用）
     if (path === '/api/ping') {
-      return checkAuth(request, env) ? json({ ok: true }) : json({ error: 'unauthorized' }, 401);
+      return (await checkAuth(request, env)) ? json({ ok: true }) : json({ error: 'unauthorized' }, 401);
+    }
+
+    // 智能机器人专用：换取登录链接（BOT_SECRET 鉴权）
+    if (path === '/api/bot/login') {
+      return botLoginRouter(request, env);
     }
 
     for (const route of apiRoutes) {
       if (path.startsWith(route.prefix)) {
-        if (!checkAuth(request, env)) {
+        if (!(await checkAuth(request, env))) {
           return json({ error: 'unauthorized' }, 401);
         }
         return route.handler(request, env, ctx, url);
