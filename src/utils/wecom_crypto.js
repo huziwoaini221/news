@@ -1,6 +1,8 @@
-// 企业微信「智能机器人」URL 回调加解密（与自建应用回调同一套方案）
+// 企业微信「智能机器人」URL 回调加解密（PKCS7 填充块大小为 32，非标准 16）
 // 密钥：EncodingAESKey(43字符) -> base64解码 -> 32字节 AES-256-CBC key，IV=key前16字节
-// 明文结构：16字节随机 + 4字节大端长度 + 消息体 + receiveId
+// 明文结构：16字节随机 + 4字节大端长度 + 消息体 + receiveId（智能机器人场景 receiveId 为空）
+// 注意：WebCrypto 的 AES-CBC 按标准 16 字节块做 PKCS7 校验，与企业微信的 32 边界填充不兼容，
+// 因此解密时附加一个伪造密文块绕过校验，加密时丢弃末尾多余的填充块。
 
 function toBytes(b64) {
   const bin = atob(b64);
@@ -19,11 +21,24 @@ function toB64(bytes) {
   return btoa(bin);
 }
 
+const BLOCK = 16;
+const PAD_BLOCK = new Uint8Array(BLOCK).fill(0x10);
+
 // 返回 { msg, receiveId }
 export async function wecomDecrypt(encryptedB64, aesKeyBytes) {
-  const key = await crypto.subtle.importKey('raw', aesKeyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+  const key = await crypto.subtle.importKey('raw', aesKeyBytes, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']);
   const iv = aesKeyBytes.slice(0, 16);
-  const dec = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, toBytes(encryptedB64));
+  const ct = toBytes(encryptedB64);
+  // 构造伪造块 fake，使 AES_DEC(fake) XOR 末尾密文块 = 全 0x10（合法 PKCS7-16）
+  const last = ct.slice(ct.length - BLOCK);
+  const t = new Uint8Array(BLOCK);
+  for (let i = 0; i < BLOCK; i++) t[i] = 0x10 ^ last[i];
+  const fake = new Uint8Array((await crypto.subtle.encrypt({ name: 'AES-CBC', iv: new Uint8Array(BLOCK) }, key, t)).slice(0, BLOCK));
+  const input = new Uint8Array(ct.length + BLOCK);
+  input.set(ct, 0);
+  input.set(fake, ct.length);
+  const dec = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, input);
+  // 手动去除企业微信 PKCS7-32 填充
   let plain = new Uint8Array(dec);
   const pad = plain[plain.length - 1];
   plain = plain.slice(0, plain.length - pad);
@@ -52,7 +67,9 @@ export async function wecomEncrypt(xml, aesKeyBytes, receiveId) {
   buf.set(recv, 20 + msg.length);
   buf.fill(padded - total, total);
   const enc = await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, key, buf);
-  return toB64(new Uint8Array(enc));
+  // WebCrypto 会额外追加一个 PKCS7-16 填充块，丢弃末尾 16 字节
+  const all = new Uint8Array(enc);
+  return toB64(all.slice(0, all.length - BLOCK));
 }
 
 // msg_signature = SHA1(字典序拼接 [token, timestamp, nonce, encrypt])

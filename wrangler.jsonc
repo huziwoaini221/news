@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "personal-hub",
   "main": "src/index.js",
+  "workers_dev": true,
   "compatibility_date": "2025-04-01",
   "d1_databases": [
     {
@@ -14,6 +15,10 @@
   "vars": {
     "APP_NAME": "personal-hub"
   },
+  "routes": [
+    { "pattern": "oneos.dpdns.org", "custom_domain": true },
+    { "pattern": "hub.oneos.dpdns.org", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./web",
     "binding": "ASSETS"
